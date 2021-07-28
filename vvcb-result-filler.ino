@@ -11,11 +11,8 @@
  #########################################################################
 */
 
-// New background colour
-#define TFT_BROWN 0x38E0
-
 // Pause in milliseconds between screens, change to 0 to time font rendering
-#define WAIT 1024
+#define WAIT 3500
 
 #include <TFT_eSPI.h> // Graphics and font library for ST7735 driver chip
 #include <SPI.h>
@@ -25,6 +22,10 @@ TFT_eSPI tft = TFT_eSPI(); // Invoke library, pins defined in User_Setup.h
 unsigned long targetTime = 0; // Used for testing draw times
 
 #define BUTTON_PIN 15
+
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include "config.h"
 
 void setup(void)
 {
@@ -37,6 +38,17 @@ void setup(void)
 
   // Declare BUTTON_PIN as digital input
   pinMode(BUTTON_PIN, INPUT);
+
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting");
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(250);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.println(WiFi.localIP());
 }
 
 void loop()
@@ -49,26 +61,48 @@ void loop()
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE);
 
-  while (!digitalRead(BUTTON_PIN))
+  String LP = String(millis());
+  String PP = String(millis());
+  do
   {
+    LP = String(millis());
+    PP = String(millis());
     Serial.println(millis());
     tft.fillScreen(TFT_BLACK);
     tft.drawString("LP:", 0, 0, 4);
-    tft.drawString(String(millis()), 80, 0, 4);
+    tft.drawString(LP, 80, 0, 4);
     tft.drawString("PP:", 0, 40, 4);
-    tft.drawString(String(millis()), 100, 40, 4);
+    tft.drawString(PP, 100, 40, 4);
     delay(125);
-  }
-
-  tft.fillScreen(TFT_BLACK);
-  tft.drawString("Vysledek:", 0, 0, 4);
-  tft.setTextColor(TFT_GREEN);
-  tft.drawString("PP:1:56,78", 0, 40, 4);
-  tft.setTextColor(TFT_WHITE);
-  delay(WAIT);
+  } while (!digitalRead(BUTTON_PIN));
 
   tft.fillScreen(TFT_BLACK);
   tft.drawString("posilam", 0, 0, 4);
   tft.drawString("na server", 0, 40, 4);
+
+  //Check WiFi connection status
+  if (WiFi.status() == WL_CONNECTED)
+  {
+    tft.drawString("WiFi OK", 0, 80, 2);
+    WiFiClient client;
+    HTTPClient http;
+
+    // Your Domain name with URL path or IP address with path
+    http.begin(client, serverName);
+    http.addHeader("Content-Type", "application/json");
+    int httpResponseCode = http.POST("{\"time\":{\"left\":" + LP + ",\"right\":" + PP + " }}");
+
+    Serial.print("HTTP Response code: ");
+    Serial.println(httpResponseCode);
+    tft.drawString("HTTP:" + String(httpResponseCode), 0, 100, 2);
+
+    // Free resources
+    http.end();
+  }
+  else
+  {
+    Serial.println("WiFi Disconnected");
+    tft.drawString("WiFi NOT OK", 0, 80, 2);
+  }
   delay(WAIT);
 }
