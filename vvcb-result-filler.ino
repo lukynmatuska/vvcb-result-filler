@@ -19,10 +19,6 @@
 
 TFT_eSPI tft = TFT_eSPI(); // Invoke library, pins defined in User_Setup.h
 
-unsigned long targetTime = 0; // Used for testing draw times
-
-#define BUTTON_PIN 15
-
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include "config.h"
@@ -31,54 +27,60 @@ void setup(void)
 {
   // Setup console
   Serial.begin(9600);
-  Serial.print("Ahoj svete!");
+  Serial.println("Hello world!");
 
   tft.init();
   tft.setRotation(1);
-
-  // Declare BUTTON_PIN as digital input
-  pinMode(BUTTON_PIN, INPUT);
-
-  WiFi.begin(ssid, password);
-  Serial.println("Connecting");
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(250);
-    Serial.print(".");
-  }
-  Serial.println("");
-  Serial.print("Connected to WiFi network with IP Address: ");
-  Serial.println(WiFi.localIP());
-}
-
-void loop()
-{
-  targetTime = millis();
-
   // First we test them with a background colour set
   tft.setTextSize(2);
 
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE);
+  tft.drawString("Connecting to WiFi", 0, 0, 2);
 
-  String LP = String(millis());
-  String PP = String(millis());
-  do
+  // Declare BUTTON_PIN as digital input
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+
+  int i = 1;
+  WiFi.begin(ssid, password);
+  Serial.println("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED)
   {
-    LP = String(millis());
-    PP = String(millis());
-    Serial.println(millis());
-    tft.fillScreen(TFT_BLACK);
-    tft.drawString("LP:", 0, 0, 4);
-    tft.drawString(LP, 80, 0, 4);
-    tft.drawString("PP:", 0, 40, 4);
-    tft.drawString(PP, 100, 40, 4);
-    delay(125);
-  } while (!digitalRead(BUTTON_PIN));
+    delay(250);
+    Serial.println(".");
+    tft.drawString(".", i++, 30, 2);
+  }
+  Serial.println("");
+  Serial.print("Connected to WiFi network with IP Address: ");
+  Serial.println(WiFi.localIP());
 
   tft.fillScreen(TFT_BLACK);
-  tft.drawString("posilam", 0, 0, 4);
-  tft.drawString("na server", 0, 40, 4);
+  tft.setTextColor(TFT_GREEN);
+  tft.drawString("Connected to WiFi", 0, 0, 2);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString(WiFi.localIP().toString().c_str(), 0, 30, 2);
+  delay(WAIT);
+}
+
+void loop()
+{
+  tft.fillScreen(TFT_BLACK);
+
+  double left;
+  double right;
+  do
+  {
+    left = millis() / 1000.0;
+    delay(100);
+    right = millis() / 1000.0;
+    tft.fillScreen(TFT_BLACK);
+    tft.drawString("L:", 0, 0, 4);
+    tft.drawString(String(left), 45, 0, 4);
+    tft.drawString("R:", 0, 40, 4);
+    tft.drawString(String(right), 45, 40, 4);
+    tft.drawString(WiFi.localIP().toString().c_str(), 0, 110, 2);
+    delay(25);
+  } while (digitalRead(BUTTON_PIN));
 
   //Check WiFi connection status
   if (WiFi.status() == WL_CONNECTED)
@@ -87,14 +89,13 @@ void loop()
     WiFiClient client;
     HTTPClient http;
 
-    // Your Domain name with URL path or IP address with path
     http.begin(client, serverName);
     http.addHeader("Content-Type", "application/json");
-    int httpResponseCode = http.POST("{\"time\":{\"left\":" + LP + ",\"right\":" + PP + " }}");
+    int httpResponseCode = http.POST("{\"time\":{\"left\":" + String(left) + ",\"right\":" + String(right) + " }}");
 
     Serial.print("HTTP Response code: ");
     Serial.println(httpResponseCode);
-    tft.drawString("HTTP:" + String(httpResponseCode), 0, 100, 2);
+    tft.drawString("HTTP:" + String(httpResponseCode), 100, 80, 2);
 
     // Free resources
     http.end();
