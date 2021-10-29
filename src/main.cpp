@@ -47,7 +47,7 @@ void setup(void)
   tft.fillScreen(TFT_BLACK);
   tft.setTextColor(TFT_WHITE);
   tft.drawString("VVCB RSLTFLR", 0, 0, 2);
-  tft.drawString("Connecting to WiFi", 0, 20, 2);
+  tft.drawString("Connecting to WiFi", 0, 30, 2);
 
   int i = 1;
   WiFi.begin(ssid, password);
@@ -56,16 +56,22 @@ void setup(void)
   {
     delay(250);
     Serial.println(".");
-    tft.drawString(".", i++, 30, 2);
+    tft.drawString(".", i++, 60, 2);
   }
   Serial.print("Connected to WiFi network with IP Address: ");
   Serial.println(WiFi.localIP());
+  Serial.print("Hostname: ");
+  Serial.println(WiFi.getHostname());
+  Serial.print("RRSI: ");
+  Serial.println(WiFi.RSSI());
 
   tft.fillScreen(TFT_BLACK);
+  tft.drawString("VVCB RSLTFLR", 0, 0, 2);
   tft.setTextColor(TFT_GREEN);
-  tft.drawString("Connected to WiFi", 0, 0, 2);
+  tft.drawString("Connected to WiFi", 0, 30, 2);
   tft.setTextColor(TFT_WHITE);
-  tft.drawString(WiFi.localIP().toString().c_str(), 0, 30, 2);
+  tft.drawString(WiFi.localIP().toString().c_str(), 0, 60, 2);
+  tft.drawString(String(WiFi.getHostname()).c_str(), 0, 90, 2);
   delay(WAIT);
 }
 
