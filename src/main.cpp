@@ -22,29 +22,6 @@ double right = 0;
 boolean rightButton = false;
 int incomingByte = 0; // for incoming serial data
 
-// Not sure if WiFiClientSecure checks the validity date of the certificate.
-// Setting clock just to be sure...
-void setClock()
-{
-  configTime(0, 0, "pool.ntp.org");
-
-  Serial.print(F("Waiting for NTP time sync: "));
-  time_t nowSecs = time(nullptr);
-  while (nowSecs < 8 * 3600 * 2)
-  {
-    delay(500);
-    Serial.print(F("."));
-    yield();
-    nowSecs = time(nullptr);
-  }
-
-  Serial.println();
-  struct tm timeinfo;
-  gmtime_r(&nowSecs, &timeinfo);
-  Serial.print(F("Current time: "));
-  Serial.print(asctime(&timeinfo));
-}
-
 void drawConnectedToWifi(TFT_eSPI tft)
 {
   tft.fillScreen(TFT_BLACK);
@@ -106,7 +83,6 @@ void setup(void)
   drawConnectedToWifi(tft);
   tft.drawString(String(WiFi.getHostname()).c_str(), 0, 90, 2);
 
-  setClock();
   delay(WAIT);
 }
 
