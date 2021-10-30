@@ -12,6 +12,7 @@ TFT_eSPI tft = TFT_eSPI(); // Invoke library, pins defined in User_Setup.h
 
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+WiFiClientSecure client;
 #include <HTTPClient.h>
 #include "config.h"
 
@@ -20,6 +21,39 @@ boolean leftButton = false;
 double right = 0;
 boolean rightButton = false;
 int incomingByte = 0; // for incoming serial data
+
+// Not sure if WiFiClientSecure checks the validity date of the certificate.
+// Setting clock just to be sure...
+void setClock()
+{
+  configTime(0, 0, "pool.ntp.org");
+
+  Serial.print(F("Waiting for NTP time sync: "));
+  time_t nowSecs = time(nullptr);
+  while (nowSecs < 8 * 3600 * 2)
+  {
+    delay(500);
+    Serial.print(F("."));
+    yield();
+    nowSecs = time(nullptr);
+  }
+
+  Serial.println();
+  struct tm timeinfo;
+  gmtime_r(&nowSecs, &timeinfo);
+  Serial.print(F("Current time: "));
+  Serial.print(asctime(&timeinfo));
+}
+
+void drawConnectedToWifi(TFT_eSPI tft)
+{
+  tft.fillScreen(TFT_BLACK);
+  tft.drawString("VVCB RSLTFLR", 0, 0, 2);
+  tft.setTextColor(TFT_GREEN);
+  tft.drawString("Connected to WiFi", 0, 30, 2);
+  tft.setTextColor(TFT_WHITE);
+  tft.drawString(WiFi.localIP().toString().c_str(), 0, 60, 2);
+}
 
 void setup(void)
 {
@@ -49,15 +83,19 @@ void setup(void)
   tft.drawString("VVCB RSLTFLR", 0, 0, 2);
   tft.drawString("Connecting to WiFi", 0, 30, 2);
 
-  int i = 1;
+  WiFi.mode(WIFI_STA);
   WiFi.begin(ssid, password);
   Serial.println("Connecting to WiFi");
+  int i = 1;
   while (WiFi.status() != WL_CONNECTED)
   {
     delay(250);
     Serial.println(".");
     tft.drawString(".", i++, 60, 2);
   }
+
+  // do not fail on SSL certificates
+  client.setInsecure();
   Serial.print("Connected to WiFi network with IP Address: ");
   Serial.println(WiFi.localIP());
   Serial.print("Hostname: ");
@@ -65,19 +103,16 @@ void setup(void)
   Serial.print("RRSI: ");
   Serial.println(WiFi.RSSI());
 
-  tft.fillScreen(TFT_BLACK);
-  tft.drawString("VVCB RSLTFLR", 0, 0, 2);
-  tft.setTextColor(TFT_GREEN);
-  tft.drawString("Connected to WiFi", 0, 30, 2);
-  tft.setTextColor(TFT_WHITE);
-  tft.drawString(WiFi.localIP().toString().c_str(), 0, 60, 2);
+  drawConnectedToWifi(tft);
   tft.drawString(String(WiFi.getHostname()).c_str(), 0, 90, 2);
+
+  setClock();
   delay(WAIT);
 }
 
 void loop()
 {
-  // send data only when you receive data:
+  /*// send data only when you receive data:
   while (Serial.available() > 0)
   {
     // read the incoming byte:
@@ -86,7 +121,7 @@ void loop()
     // say what you got:
     Serial.print("I received: ");
     Serial.println(incomingByte, DEC);
-  }
+  }*/
 
   // Prepare layout 16x2 LCD
   lcd.clear();
@@ -123,20 +158,45 @@ void loop()
   // Check WiFi connection status
   if (WiFi.status() == WL_CONNECTED)
   {
-    tft.drawString("WiFi OK", 0, 88, 2);
-    WiFiClient client;
-    HTTPClient http;
+    drawConnectedToWifi(tft);
+    tft.drawString("WiFi OK", 0, 86, 2);
 
-    http.begin(client, serverName);
-    http.addHeader("Content-Type", "application/json");
-    int httpResponseCode = http.POST("{\"time\":{\"left\":" + String(left) + ",\"right\":" + String(right) + " }}");
+    HTTPClient https;
+    // allow reuse (if server supports it)
+    https.setReuse(true);
 
-    Serial.print("HTTP Response code: ");
-    Serial.println(httpResponseCode);
-    tft.drawString("HTTP:" + String(httpResponseCode), 100, 88, 2);
+    Serial.println("[HTTPS] begin");
+    if (https.begin(client, serverName))
+    {
+      // start connection and send HTTP header
+      https.addHeader("Content-Type", "application/json");
+      int httpResponseCode = https.POST("{\"time\":{\"left\":" + String(left) + ",\"right\":" + String(right) + " }}");
 
-    // Free resources
-    http.end();
+      // httpResponseCode will be negative on error
+      if (httpResponseCode > 0)
+      {
+        // HTTP header has been send and Server response header has been handled
+        Serial.printf("[HTTPS] POST... code: %d\n", httpResponseCode);
+        tft.drawString("HTTPS:" + String(httpResponseCode), 100, 88, 2);
+
+        // file found at server
+        if (httpResponseCode == HTTP_CODE_OK || httpResponseCode == HTTP_CODE_MOVED_PERMANENTLY)
+        {
+          String payload = https.getString();
+          Serial.println(payload);
+        }
+      }
+      else
+      {
+        Serial.printf("[HTTPS] POST... failed, error: %s\n", https.errorToString(httpResponseCode).c_str());
+      }
+
+      https.end();
+    }
+    else
+    {
+      Serial.printf("[HTTPS] Unable to connect.\n");
+    }
     left = 0;
     right = 0;
   }
